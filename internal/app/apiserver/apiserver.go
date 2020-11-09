@@ -1,8 +1,6 @@
 package apiserver
 
 import (
-	"fmt"
-	"html/template"
 	"net/http"
 
 	"github.com/VIPowERuS/nsu_postman/internal/app/store"
@@ -50,12 +48,6 @@ func (s *APIServer) configureLogger() error {
 	return nil
 }
 
-func (s *APIServer) configureRouter() {
-	s.router.HandleFunc("/", s.indexHandler())
-	s.router.HandleFunc("/writeAnnouncement", s.writeAnnouncementHandler())
-	s.router.HandleFunc("/SaveAnnouncement", s.saveAnnouncementHandler())
-}
-
 func (s *APIServer) configureStore() error {
 	st := store.New(s.config.Store)
 	if err := st.Open(); err != nil {
@@ -63,38 +55,4 @@ func (s *APIServer) configureStore() error {
 	}
 	s.store = st
 	return nil
-}
-
-func (s *APIServer) indexHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		t, err := template.ParseFiles("internal/templates/index.html", "internal/templates/header.html", "internal/templates/footer.html")
-		if err != nil {
-			fmt.Fprintf(w, err.Error())
-			return
-		}
-
-		t.ExecuteTemplate(w, "index", nil)
-	}
-}
-
-func (s *APIServer) writeAnnouncementHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		t, err := template.ParseFiles("internal/templates/write.html", "internal/templates/header.html", "internal/templates/footer.html")
-		if err != nil {
-			fmt.Fprintf(w, err.Error())
-			return
-		}
-
-		t.ExecuteTemplate(w, "write", nil)
-	}
-}
-
-func (s *APIServer) saveAnnouncementHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.FormValue("id")
-		title := r.FormValue("title")
-		content := r.FormValue("content")
-		s.logger.Infoln(id, title, content)
-		http.Redirect(w, r, "/", 302)
-	}
 }

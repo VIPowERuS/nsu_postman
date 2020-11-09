@@ -17,6 +17,7 @@ func init() {
 }
 
 func main() {
+
 	flag.Parse()
 	config := apiserver.NewConfig()
 	_, err := toml.DecodeFile(configPath, config)
@@ -28,4 +29,14 @@ func main() {
 	if err := s.Start(); err != nil {
 		log.Fatal(err)
 	}
+
+	/*
+		h := sha1.New()
+		//h.Write([]byte("test"))
+		//h.Reset()
+		h.Write([]byte("qweasd22"))
+		bs := h.Sum([]byte{})
+		fmt.Printf("%x\n", string(bs))
+		f6bb6d326a3826e18df674d05e6fa2bdd8518284
+	*/
 }
