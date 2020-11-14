@@ -1,5 +1,7 @@
 bind_addr = ":8080"
 log_level = "debug"
+smtp_mail = "nsu.postman@gmail.com"
+smtp_password = "progasosat'"
 
 [store]
 database_url = "user=postgres password=postgres host=localhost dbname=users sslmode=disable"

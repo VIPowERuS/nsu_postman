@@ -75,9 +75,8 @@ func (s *APIServer) loginCheck() http.HandlerFunc {
 		if tempPassword := model.ToHash(password); tempPassword == usr.EncryptedPassword {
 			http.RedirectHandler("/", 300)
 			return
-		} else {
-			usr = nil
 		}
+		usr = nil
 		//fmt.Println(usr)
 
 		t.ExecuteTemplate(w, "login", nil)

@@ -6,6 +6,16 @@ import (
 	_ "github.com/lib/pq" // ...
 )
 
+// Config ...
+type Config struct {
+	DatabaseURL string `toml:"database_url"`
+}
+
+// NewConfig ...
+func NewConfig() *Config {
+	return &Config{}
+}
+
 // Store ...
 type Store struct {
 	config         *Config
