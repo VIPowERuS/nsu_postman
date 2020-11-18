@@ -6,6 +6,7 @@ import (
 
 	"github.com/VIPowERuS/nsu_postman/internal/app/store"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,6 +17,7 @@ type Config struct {
 	SMTPMail     string `toml:"smtp_mail"`
 	SMTPPassword string `toml:"smtp_password"`
 	Store        *store.Config
+	SessionKey   string `toml:"session_key"`
 }
 
 // NewConfig ...
@@ -31,18 +33,20 @@ func NewConfig() *Config {
 
 // APIServer ...
 type APIServer struct {
-	config *Config
-	logger *logrus.Logger
-	router *mux.Router
-	store  *store.Store
+	config       *Config
+	logger       *logrus.Logger
+	router       *mux.Router
+	store        *store.Store
+	sessionStore sessions.Store
 }
 
 // New ...
 func New(config *Config) *APIServer {
 	return &APIServer{
-		config: config,
-		logger: logrus.New(),
-		router: mux.NewRouter(),
+		config:       config,
+		logger:       logrus.New(),
+		router:       mux.NewRouter(),
+		sessionStore: sessions.NewCookieStore([]byte(config.SessionKey)),
 	}
 }
 

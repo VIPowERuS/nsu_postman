@@ -73,7 +73,17 @@ func (s *APIServer) loginCheck() http.HandlerFunc {
 		password := r.FormValue("password")
 		usr, err := s.store.User().FindByEmail(mail)
 		if tempPassword := model.ToHash(password); tempPassword == usr.EncryptedPassword {
-			http.RedirectHandler("/", 300)
+			session, err := s.sessionStore.Get(r, "mail")
+			if err != nil {
+				fmt.Fprintf(w, err.Error())
+				return
+			}
+			session.Values["user_id"] = usr.ID
+			if err := s.sessionStore.Save(r, w, session); err != nil {
+				fmt.Fprintf(w, err.Error())
+				return
+			}
+			http.Redirect(w, r, "/", 302)
 			return
 		}
 		usr = nil
