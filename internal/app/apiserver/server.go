@@ -13,11 +13,12 @@ func (s *APIServer) configureRouter() {
 	s.router.HandleFunc("/", s.indexHandler())
 	s.router.HandleFunc("/writeAnnouncement", s.writeAnnouncementHandler())
 	s.router.HandleFunc("/SaveAnnouncement", s.saveAnnouncementHandler())
-	s.router.HandleFunc("/login", s.loginUser())
-	s.router.HandleFunc("/afterLogin", s.loginCheck())
+	s.router.HandleFunc("/login", s.loginCheck()).Methods("POST")
+	s.router.HandleFunc("/login", s.loginUser()).Methods("GET")
 }
 
 func (s *APIServer) indexHandler() http.HandlerFunc {
+	s.logger.Info("Index handler was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/index.html", "internal/templates/header.html", "internal/templates/footer.html")
 		if err != nil {
@@ -30,6 +31,7 @@ func (s *APIServer) indexHandler() http.HandlerFunc {
 }
 
 func (s *APIServer) writeAnnouncementHandler() http.HandlerFunc {
+	s.logger.Info("Write announcement was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/write.html", "internal/templates/header.html", "internal/templates/footer.html")
 		if err != nil {
@@ -42,6 +44,7 @@ func (s *APIServer) writeAnnouncementHandler() http.HandlerFunc {
 }
 
 func (s *APIServer) saveAnnouncementHandler() http.HandlerFunc {
+	s.logger.Info("Save announcement was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.FormValue("id")
 		title := r.FormValue("title")
@@ -52,6 +55,7 @@ func (s *APIServer) saveAnnouncementHandler() http.HandlerFunc {
 }
 
 func (s *APIServer) loginUser() http.HandlerFunc {
+	s.logger.Info("Login user was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/login.html", "internal/templates/header.html", "internal/templates/footer.html")
 		if err != nil {
@@ -63,6 +67,7 @@ func (s *APIServer) loginUser() http.HandlerFunc {
 }
 
 func (s *APIServer) loginCheck() http.HandlerFunc {
+	s.logger.Info("Login check was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/login.html", "internal/templates/header.html", "internal/templates/footer.html")
 		if err != nil {
