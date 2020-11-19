@@ -3,6 +3,7 @@ package apiserver
 import (
 	"net/http"
 	"net/smtp"
+	"strings"
 
 	"github.com/VIPowERuS/nsu_postman/internal/app/store"
 	"github.com/gorilla/mux"
@@ -38,6 +39,7 @@ type APIServer struct {
 	router       *mux.Router
 	store        *store.Store
 	sessionStore sessions.Store
+	mail         smtp.Auth
 }
 
 // New ...
@@ -57,7 +59,7 @@ func (s *APIServer) Start() error {
 	}
 
 	s.configureRouter()
-	_ = s.configureMailing()
+	s.mail = s.configureMailing()
 	if err := s.configureStore(); err != nil {
 		return err
 	}
@@ -74,15 +76,33 @@ func (s *APIServer) configureLogger() error {
 	return nil
 }
 
-func (s *APIServer) configureMailing() smtp.Auth {
-	return smtp.PlainAuth("", s.config.SMTPMail, s.config.SMTPPassword, "smtp.gmail.com")
-}
-
 func (s *APIServer) configureStore() error {
 	st := store.New(s.config.Store)
 	if err := st.Open(); err != nil {
 		return err
 	}
 	s.store = st
+	return nil
+}
+
+func (s *APIServer) configureMailing() smtp.Auth {
+	return smtp.PlainAuth("", s.config.SMTPMail, s.config.SMTPPassword, "smtp.gmail.com")
+}
+
+// MailData ...
+type MailData struct {
+	To      string
+	Subject string
+	Body    string
+}
+
+func (s *APIServer) sendMails(data MailData) error {
+	msg := ("To: " + data.To + " " + "\r\n" +
+		"Subject:" + data.Subject + " \r\n" +
+		"\r\n" +
+		data.Body)
+	if err := smtp.SendMail("smtp.gmail.com:587", s.mail, s.config.SMTPMail, strings.Split(data.To, ", "), []byte(msg)); err != nil {
+		return err
+	}
 	return nil
 }

@@ -15,6 +15,8 @@ func (s *APIServer) configureRouter() {
 	s.router.HandleFunc("/SaveAnnouncement", s.saveAnnouncementHandler())
 	s.router.HandleFunc("/login", s.loginCheck()).Methods("POST")
 	s.router.HandleFunc("/login", s.loginUser()).Methods("GET")
+	s.router.HandleFunc("/writeMail", s.writeMail()).Methods("GET")
+	s.router.HandleFunc("/sendMail", s.sendMail()).Methods("POST")
 }
 
 func (s *APIServer) indexHandler() http.HandlerFunc {
@@ -54,7 +56,7 @@ func (s *APIServer) saveAnnouncementHandler() http.HandlerFunc {
 	}
 }
 
-func (s *APIServer) loginUser() http.HandlerFunc {
+func (s *APIServer) loginUser() http.HandlerFunc { // "GET" method
 	s.logger.Info("Login user was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/login.html", "internal/templates/header.html", "internal/templates/footer.html")
@@ -66,7 +68,7 @@ func (s *APIServer) loginUser() http.HandlerFunc {
 	}
 }
 
-func (s *APIServer) loginCheck() http.HandlerFunc {
+func (s *APIServer) loginCheck() http.HandlerFunc { // "POST" method
 	s.logger.Info("Login check was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/login.html", "internal/templates/header.html", "internal/templates/footer.html")
@@ -95,6 +97,36 @@ func (s *APIServer) loginCheck() http.HandlerFunc {
 		//fmt.Println(usr)
 
 		t.ExecuteTemplate(w, "login", nil)
+	}
+}
+
+func (s *APIServer) writeMail() http.HandlerFunc {
+	s.logger.Info("Write Mail was called")
+	return func(w http.ResponseWriter, r *http.Request) {
+		t, err := template.ParseFiles("internal/templates/mail.html", "internal/templates/header.html", "internal/templates/footer.html")
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+		t.ExecuteTemplate(w, "mail", nil)
+	}
+}
+
+func (s *APIServer) sendMail() http.HandlerFunc {
+	s.logger.Info("Send Mail was called")
+	return func(w http.ResponseWriter, r *http.Request) {
+		var data = MailData{r.FormValue("receiver"), r.FormValue("subject"), r.FormValue("content")}
+		if err := s.sendMails(data); err != nil {
+			s.logger.Error(err)
+			s.respond(w, r, http.StatusInternalServerError, err)
+		}
+		s.logger.Info("mail was sended")
+		t, err := template.ParseFiles("internal/templates/mail.html", "internal/templates/header.html", "internal/templates/footer.html")
+		if err != nil {
+			fmt.Fprintf(w, err.Error())
+			return
+		}
+		t.ExecuteTemplate(w, "mail", nil)
 	}
 }
 
