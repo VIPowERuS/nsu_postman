@@ -15,11 +15,11 @@ type User struct {
 	Email             string `json:"email"`
 	Password          string `json:"password,omitempty"`
 	EncryptedPassword string `json:"-"`
+	Access            int
 }
 
 // Validate ...
 func (u *User) Validate() error {
-
 	return validation.ValidateStruct(u,
 		validation.Field(&u.Email, validation.Required, is.Email),
 		validation.Field(&u.Password, validation.By(requiredIf(u.EncryptedPassword == "")), validation.Length(6, 100)))
@@ -30,7 +30,6 @@ func requiredIf(cond bool) validation.RuleFunc {
 		if cond {
 			return validation.Validate(value, validation.Required)
 		}
-
 		return nil
 	}
 }
