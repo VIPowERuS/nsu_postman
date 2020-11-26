@@ -17,7 +17,11 @@
 <body>
     <table width="100%">
         <tr>
+            {{ if .ID }}
+            <td align="right"><a href="/logout">Logout</a><br>{{.Email}}</td>
+            {{ else }}
             <td align="right"><a href="/login">Sign in</a></td>
+            {{ end }}
         </tr>
     </table>
 
@@ -28,7 +32,7 @@
         </div>
         <div class="collapse navbar-collapse">
             <ul class="nav navbar-nav">
-                <li class="active"><a href="/">Home {{ .Email }}</a></li>
+                <li class="active"><a href="/">Home</a></li>
                 {{ if .ID }}
                 <li><a href="/writeAnnouncement">New Announcement</a></li>
                 <li><a href="/writeMail">Send Mail</a></li>

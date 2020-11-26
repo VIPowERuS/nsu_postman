@@ -28,6 +28,7 @@ func (s *APIServer) configureRouter() {
 	s.router.HandleFunc("/SaveAnnouncement", s.saveAnnouncementHandler())
 	s.router.HandleFunc("/login", s.loginCheck()).Methods("POST")
 	s.router.HandleFunc("/login", s.loginUser()).Methods("GET")
+	s.router.HandleFunc("/logout", s.logout())
 	s.router.HandleFunc("/writeMail", s.writeMail()).Methods("GET")
 	s.router.HandleFunc("/sendMail", s.sendMail()).Methods("POST")
 
@@ -67,6 +68,7 @@ func (s *APIServer) indexHandler() http.HandlerFunc {
 			s.logger.Error("templates error")
 			return
 		}
+		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
 		t.ExecuteTemplate(w, "index", r.Context().Value(ctxKeyUser).(*model.User))
 	}
 }
@@ -74,20 +76,26 @@ func (s *APIServer) indexHandler() http.HandlerFunc {
 func (s *APIServer) writeAnnouncementHandler() http.HandlerFunc {
 	s.logger.Info("Write announcement was called")
 	return func(w http.ResponseWriter, r *http.Request) {
+		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
+			http.Redirect(w, r, "/", 302)
+		}
 		t, err := template.ParseFiles("internal/templates/write.html", "internal/templates/header.html", "internal/templates/footer.html")
 		if err != nil {
 			s.error(w, r, http.StatusInternalServerError, err)
 			s.logger.Error("templates error")
 			return
 		}
-
-		t.ExecuteTemplate(w, "write", r.Context().Value(ctxKeyUser).(*model.User))
+		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
+		t.ExecuteTemplate(w, "write", nil)
 	}
 }
 
 func (s *APIServer) saveAnnouncementHandler() http.HandlerFunc {
 	s.logger.Info("Save announcement was called")
 	return func(w http.ResponseWriter, r *http.Request) {
+		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
+			http.Redirect(w, r, "/", 302)
+		}
 		id := r.FormValue("id")
 		title := r.FormValue("title")
 		content := r.FormValue("content")
@@ -105,6 +113,7 @@ func (s *APIServer) loginUser() http.HandlerFunc { // "GET" method
 			s.logger.Error("templates error")
 			return
 		}
+		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
 		t.ExecuteTemplate(w, "login", r.Context().Value(ctxKeyUser).(*model.User))
 	}
 }
@@ -140,16 +149,41 @@ func (s *APIServer) loginCheck() http.HandlerFunc { // "POST" method
 	}
 }
 
+func (s *APIServer) logout() http.HandlerFunc {
+	s.logger.Info("Logout was called")
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.logger.Debug("there")
+		session, err := s.sessionStore.Get(r, sessionName)
+		if err != nil {
+			s.error(w, r, http.StatusInternalServerError, err)
+			s.logger.Error("cookies GET error")
+			return
+		}
+		session.Options.MaxAge = -1
+		if err := s.sessionStore.Save(r, w, session); err != nil {
+			s.error(w, r, http.StatusInternalServerError, err)
+			s.logger.Error("cookies DELETE error")
+			return
+		}
+		http.Redirect(w, r, "/", 302)
+		return
+	}
+}
+
 func (s *APIServer) writeMail() http.HandlerFunc {
 	s.logger.Info("Write Mail was called")
 	return func(w http.ResponseWriter, r *http.Request) {
+		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
+			http.Redirect(w, r, "/", 302)
+		}
 		t, err := template.ParseFiles("internal/templates/mail.html", "internal/templates/header.html", "internal/templates/footer.html")
 		if err != nil {
 			s.error(w, r, http.StatusInternalServerError, err)
 			s.logger.Error("templates error")
 			return
 		}
-		t.ExecuteTemplate(w, "mail", r.Context().Value(ctxKeyUser).(*model.User))
+		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
+		t.ExecuteTemplate(w, "mail", nil)
 	}
 }
 
@@ -168,7 +202,7 @@ func (s *APIServer) sendMail() http.HandlerFunc {
 			s.logger.Error("templates error")
 			return
 		}
-		t.ExecuteTemplate(w, "mail", r.Context().Value(ctxKeyUser).(*model.User))
+		t.ExecuteTemplate(w, "mail", nil)
 	}
 }
 
