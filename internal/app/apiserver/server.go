@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/VIPowERuS/nsu_postman/internal/app/model"
+	"github.com/VIPowERuS/nsu_postman/internal/app/store"
 )
 
 const (
@@ -24,13 +25,13 @@ type ctxKey int16
 func (s *APIServer) configureRouter() {
 	s.router.Use(s.authenticateUser)
 	s.router.HandleFunc("/", s.indexHandler())
-	s.router.HandleFunc("/writeAnnouncement", s.writeAnnouncementHandler())
-	s.router.HandleFunc("/SaveAnnouncement", s.saveAnnouncementHandler())
-	s.router.HandleFunc("/login", s.loginCheck()).Methods("POST")
-	s.router.HandleFunc("/login", s.loginUser()).Methods("GET")
-	s.router.HandleFunc("/logout", s.logout())
-	s.router.HandleFunc("/writeMail", s.writeMail()).Methods("GET")
-	s.router.HandleFunc("/sendMail", s.sendMail()).Methods("POST")
+	s.router.HandleFunc("/writePost", s.writePostHandler())
+	s.router.HandleFunc("/SavePost", s.savePostHandler())
+	s.router.HandleFunc("/login", s.loginCheckHandler()).Methods("POST")
+	s.router.HandleFunc("/login", s.loginUserHandler()).Methods("GET")
+	s.router.HandleFunc("/logout", s.logoutHandler())
+	s.router.HandleFunc("/writeMail", s.writeMailHandler()).Methods("GET")
+	s.router.HandleFunc("/sendMail", s.sendMailHandler()).Methods("POST")
 
 }
 
@@ -68,13 +69,19 @@ func (s *APIServer) indexHandler() http.HandlerFunc {
 			s.logger.Error("templates error")
 			return
 		}
+		posts, err := s.store.User().FindAllPosts()
+		if err != nil {
+			s.error(w, r, http.StatusInternalServerError, err)
+			s.logger.Error("db error (finding posts)")
+			return
+		}
 		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
-		t.ExecuteTemplate(w, "index", r.Context().Value(ctxKeyUser).(*model.User))
+		t.ExecuteTemplate(w, "index", posts)
 	}
 }
 
-func (s *APIServer) writeAnnouncementHandler() http.HandlerFunc {
-	s.logger.Info("Write announcement was called")
+func (s *APIServer) writePostHandler() http.HandlerFunc {
+	s.logger.Info("Write post was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
 			http.Redirect(w, r, "/", 302)
@@ -90,21 +97,22 @@ func (s *APIServer) writeAnnouncementHandler() http.HandlerFunc {
 	}
 }
 
-func (s *APIServer) saveAnnouncementHandler() http.HandlerFunc {
-	s.logger.Info("Save announcement was called")
+func (s *APIServer) savePostHandler() http.HandlerFunc { // only "POST" method
+	s.logger.Info("Save post was called")
 	return func(w http.ResponseWriter, r *http.Request) {
-		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
-			http.Redirect(w, r, "/", 302)
+		postID, err := s.store.User().AddPost(store.Post{ID: 0, Header: r.FormValue("header"),
+			Department: r.FormValue("department"), Content: r.FormValue("content"), Date: ""})
+		if err != nil {
+			s.error(w, r, http.StatusInternalServerError, err)
+			s.logger.Error("db error (adding post)")
+			return
 		}
-		id := r.FormValue("id")
-		title := r.FormValue("title")
-		content := r.FormValue("content")
-		s.logger.Infoln(id, title, content)
-		http.Redirect(w, r, "/", 302)
+		s.logger.Infof("Post %d was added", postID)
+		http.Redirect(w, r, "/", 301)
 	}
 }
 
-func (s *APIServer) loginUser() http.HandlerFunc { // "GET" method
+func (s *APIServer) loginUserHandler() http.HandlerFunc { // "GET" method
 	s.logger.Info("Login user was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/login.html", "internal/templates/header.html", "internal/templates/footer.html")
@@ -118,7 +126,7 @@ func (s *APIServer) loginUser() http.HandlerFunc { // "GET" method
 	}
 }
 
-func (s *APIServer) loginCheck() http.HandlerFunc { // "POST" method
+func (s *APIServer) loginCheckHandler() http.HandlerFunc { // "POST" method
 	s.logger.Info("Login check was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/login.html", "internal/templates/header.html", "internal/templates/footer.html")
@@ -145,11 +153,12 @@ func (s *APIServer) loginCheck() http.HandlerFunc { // "POST" method
 			return
 		}
 		usr = nil
-		t.ExecuteTemplate(w, "login", r.Context().Value(ctxKeyUser).(*model.User))
+		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
+		t.ExecuteTemplate(w, "login", nil)
 	}
 }
 
-func (s *APIServer) logout() http.HandlerFunc {
+func (s *APIServer) logoutHandler() http.HandlerFunc {
 	s.logger.Info("Logout was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.logger.Debug("there")
@@ -170,7 +179,7 @@ func (s *APIServer) logout() http.HandlerFunc {
 	}
 }
 
-func (s *APIServer) writeMail() http.HandlerFunc {
+func (s *APIServer) writeMailHandler() http.HandlerFunc {
 	s.logger.Info("Write Mail was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
@@ -187,9 +196,12 @@ func (s *APIServer) writeMail() http.HandlerFunc {
 	}
 }
 
-func (s *APIServer) sendMail() http.HandlerFunc {
+func (s *APIServer) sendMailHandler() http.HandlerFunc {
 	s.logger.Info("Send Mail was called")
 	return func(w http.ResponseWriter, r *http.Request) {
+		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
+			http.Redirect(w, r, "/", 302)
+		}
 		var data = MailData{r.FormValue("receiver"), r.FormValue("subject"), r.FormValue("content")}
 		if err := s.sendMails(data); err != nil {
 			s.logger.Error("send mail error:", err)
@@ -202,6 +214,7 @@ func (s *APIServer) sendMail() http.HandlerFunc {
 			s.logger.Error("templates error")
 			return
 		}
+		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
 		t.ExecuteTemplate(w, "mail", nil)
 	}
 }
