@@ -4,8 +4,8 @@
 	<div class="col-xs-4">
 	</div>
 	<div class="col-xs-4">
-		<form role="form" method="POST" action="/SavePost">
-			<input type="hidden" name="id" value="{{.Id}}" />
+		<form role="form" method="POST" action="/savePost">
+			<input type="hidden" name="id" value="{{.ID}}" />
 			<div class="form-group">
 				<label>Header</label>
 				<input type="text" class="form-control" id="header" name="header" value="{{.Header}}"  />
@@ -14,7 +14,7 @@
 			</div>
 			<div class="form-group">
 				<label>Content</label>
-				<textarea id="content" name="content"></textarea>
+				<textarea id="content" name="content">{{.Content}}</textarea>
 			</div>
 			<button type="submit" class="btn btn-default">Submit</button>
 		</form>

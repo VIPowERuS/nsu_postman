@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"net/http"
+	"strconv"
 
 	"github.com/VIPowERuS/nsu_postman/internal/app/model"
 	"github.com/VIPowERuS/nsu_postman/internal/app/store"
@@ -26,7 +28,8 @@ func (s *APIServer) configureRouter() {
 	s.router.Use(s.authenticateUser)
 	s.router.HandleFunc("/", s.indexHandler())
 	s.router.HandleFunc("/writePost", s.writePostHandler())
-	s.router.HandleFunc("/SavePost", s.savePostHandler())
+	s.router.HandleFunc("/savePost", s.savePostHandler())
+	s.router.HandleFunc("/editPost", s.editPostHandler())
 	s.router.HandleFunc("/login", s.loginCheckHandler()).Methods("POST")
 	s.router.HandleFunc("/login", s.loginUserHandler()).Methods("GET")
 	s.router.HandleFunc("/logout", s.logoutHandler())
@@ -100,15 +103,67 @@ func (s *APIServer) writePostHandler() http.HandlerFunc {
 func (s *APIServer) savePostHandler() http.HandlerFunc { // only "POST" method
 	s.logger.Info("Save post was called")
 	return func(w http.ResponseWriter, r *http.Request) {
-		postID, err := s.store.User().AddPost(store.Post{ID: 0, Header: r.FormValue("header"),
-			Department: r.FormValue("department"), Content: r.FormValue("content"), Date: ""})
+		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
+			http.Redirect(w, r, "/", 302)
+		}
+		stringID := r.FormValue("id")
+		post := store.Post{ID: 0, Header: r.FormValue("header"),
+			Department: r.FormValue("department"), Content: r.FormValue("content"), Date: ""}
+		if stringID != "" { // need to change data
+			intID, err := strconv.Atoi(stringID)
+			fmt.Print("int id == ", intID)
+			if err != nil {
+				s.error(w, r, http.StatusInternalServerError, err)
+				s.logger.Error("db error (edit post 1)")
+				return
+			}
+			post.ID = intID
+			err = s.store.User().ChangePost(post)
+			if err != nil {
+				s.error(w, r, http.StatusInternalServerError, err)
+				s.logger.Error("db error (adding post)")
+				return
+			}
+			s.logger.Infof("Post %d was changed", post.ID)
+			http.Redirect(w, r, "/", 301)
+			return
+		} else {
+			postID, err := s.store.User().AddPost(post)
+			if err != nil {
+				s.error(w, r, http.StatusInternalServerError, err)
+				s.logger.Error("db error (adding post)")
+				return
+			}
+			s.logger.Infof("Post %d was added", postID)
+			http.Redirect(w, r, "/", 301)
+		}
+	}
+}
+
+func (s *APIServer) editPostHandler() http.HandlerFunc { // only "POST" method
+	s.logger.Info("Edit post was called")
+	return func(w http.ResponseWriter, r *http.Request) {
+		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
+			http.Redirect(w, r, "/", 302)
+		}
+		stringID := r.FormValue("id")
+		post, err := s.store.User().FindPost(stringID)
 		if err != nil {
-			s.error(w, r, http.StatusInternalServerError, err)
-			s.logger.Error("db error (adding post)")
+			s.error(w, r, http.StatusBadRequest, err)
+			s.logger.Error("db error (edit post 2)")
 			return
 		}
-		s.logger.Infof("Post %d was added", postID)
-		http.Redirect(w, r, "/", 301)
+		ID, err := strconv.Atoi(r.FormValue("id"))
+		post.ID = ID
+		s.logger.Infof("Post %d was choosen to be changed", post.ID)
+		t, err := template.ParseFiles("internal/templates/write.html", "internal/templates/header.html", "internal/templates/footer.html")
+		if err != nil {
+			s.error(w, r, http.StatusInternalServerError, err)
+			s.logger.Error("templates error")
+			return
+		}
+		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
+		t.ExecuteTemplate(w, "write", post)
 	}
 }
 
@@ -161,7 +216,6 @@ func (s *APIServer) loginCheckHandler() http.HandlerFunc { // "POST" method
 func (s *APIServer) logoutHandler() http.HandlerFunc {
 	s.logger.Info("Logout was called")
 	return func(w http.ResponseWriter, r *http.Request) {
-		s.logger.Debug("there")
 		session, err := s.sessionStore.Get(r, sessionName)
 		if err != nil {
 			s.error(w, r, http.StatusInternalServerError, err)
