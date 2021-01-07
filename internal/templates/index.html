@@ -1,5 +1,7 @@
 {{ define "index" }}
+
 {{ $ID := .ID }}
+
 {{ range $key, $value := .Data }}
 <div class="row">
 	<div class="col-xs-2">
@@ -19,6 +21,7 @@
 	</div>
 	<div class="col-xs-8">
 		{{ $value.Content }}
+		<hr color="#008000" size="1" noshade>
 	</div>
 	<div class="col-xs-2">
 	</div>
