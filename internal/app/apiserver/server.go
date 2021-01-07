@@ -78,8 +78,12 @@ func (s *APIServer) indexHandler() http.HandlerFunc {
 			s.logger.Error("db error (finding posts)")
 			return
 		}
+		chi := struct {
+			Data []store.Post
+			ID   int
+		}{posts, r.Context().Value(ctxKeyUser).(*model.User).ID}
 		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
-		t.ExecuteTemplate(w, "index", posts)
+		t.ExecuteTemplate(w, "index", chi)
 	}
 }
 
@@ -127,16 +131,15 @@ func (s *APIServer) savePostHandler() http.HandlerFunc { // only "POST" method
 			s.logger.Infof("Post %d was changed", post.ID)
 			http.Redirect(w, r, "/", 301)
 			return
-		} else {
-			postID, err := s.store.User().AddPost(post)
-			if err != nil {
-				s.error(w, r, http.StatusInternalServerError, err)
-				s.logger.Error("db error (adding post)")
-				return
-			}
-			s.logger.Infof("Post %d was added", postID)
-			http.Redirect(w, r, "/", 301)
 		}
+		postID, err := s.store.User().AddPost(post)
+		if err != nil {
+			s.error(w, r, http.StatusInternalServerError, err)
+			s.logger.Error("db error (adding post)")
+			return
+		}
+		s.logger.Infof("Post %d was added", postID)
+		http.Redirect(w, r, "/", 301)
 	}
 }
 

@@ -1,11 +1,14 @@
 {{ define "index" }}
-
-{{ range $key, $value := . }}
+{{ $ID := .ID }}
+{{ range $key, $value := .Data }}
 <div class="row">
 	<div class="col-xs-2">
 	</div>
 	<div class="col-xs-8">
-		<h1>{{ $value.Header }} <a href="/editPost?id={{$value.ID}}">edit {{$value.ID}}</a></h1>
+		<h1>{{ $value.Header }} {{ if $ID }}
+			<a href="/editPost?id={{$value.ID}}"> edit {{$value.ID}}</a>
+			{{ end }}
+		</h1>
 		<h2>{{ $value.Department }}</h2>
 	</div>
 	<div class="col-xs-2">
