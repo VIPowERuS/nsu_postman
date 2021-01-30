@@ -11,6 +11,7 @@ import (
 
 	"github.com/VIPowERuS/nsu_postman/internal/app/model"
 	"github.com/VIPowERuS/nsu_postman/internal/app/store"
+	"github.com/gorilla/mux"
 )
 
 const (
@@ -20,22 +21,48 @@ const (
 
 var (
 	errNotAuthenticated = errors.New("Not authenticated")
+	departments         map[string]int
 )
+
+func init() {
+	departments = make(map[string]int)
+	departments["kafaiml"] = 1
+	departments["kafvmat"] = 2
+	departments["kafvychmat"] = 3
+	departments["kafedra-vychislitelnykh-sistem"] = 4 // !!!
+	departments["kafgitp"] = 5
+	departments["kafgidro"] = 6
+	departments["kafdmi"] = 7
+	departments["kafdur"] = 8
+	departments["kafedra-matematicheskikh-metodov-geofiziki"] = 9 // !!!
+	departments["kafma"] = 10
+	departments["kafmatmod"] = 11
+	departments["kafmatek"] = 12
+	departments["kafmmmns"] = 13
+	departments["kafpm"] = 14
+	departments["kafprog"] = 15
+	departments["kaftk"] = 16
+	departments["kaftmeh"] = 17
+	departments["kaftvims"] = 18
+	departments["kaftf"] = 19
+	departments["kafstudents"] = 20
+}
 
 type ctxKey int16
 
 func (s *APIServer) configureRouter() {
 	s.router.Use(s.authenticateUser)
-	s.router.HandleFunc("/", s.indexHandler())
+	s.router.HandleFunc("/", s.mainPageHandler())
+	s.router.HandleFunc("/{department:kaf[a-z]*}", s.indexHandler())
 	s.router.HandleFunc("/writePost", s.writePostHandler())
 	s.router.HandleFunc("/savePost", s.savePostHandler())
 	s.router.HandleFunc("/editPost", s.editPostHandler())
+	s.router.HandleFunc("/delete", s.deletePostHandler())
 	s.router.HandleFunc("/login", s.loginCheckHandler()).Methods("POST")
 	s.router.HandleFunc("/login", s.loginUserHandler()).Methods("GET")
 	s.router.HandleFunc("/logout", s.logoutHandler())
 	s.router.HandleFunc("/writeMail", s.writeMailHandler()).Methods("GET")
 	s.router.HandleFunc("/sendMail", s.sendMailHandler()).Methods("POST")
-
 }
 
 func (s *APIServer) getCookie(w http.ResponseWriter, r *http.Request) *model.User {
@@ -63,6 +90,29 @@ func (s *APIServer) authenticateUser(next http.Handler) http.Handler {
 	})
 }
 
+func departmentByAccess(r *http.Request) string {
+	for key, value := range departments {
+		if value == r.Context().Value(ctxKeyUser).(*model.User).Access {
+			return key
+		}
+	}
+	return ""
+}
+
+func (s *APIServer) mainPageHandler() http.HandlerFunc {
+	s.logger.Info("Index handler was called")
+	return func(w http.ResponseWriter, r *http.Request) {
+		t, err := template.ParseFiles("internal/templates/root.html", "internal/templates/header.html", "internal/templates/footer.html")
+		if err != nil {
+			s.error(w, r, http.StatusInternalServerError, err)
+			s.logger.Error("templates error")
+			return
+		}
+		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
+		t.ExecuteTemplate(w, "root", nil)
+	}
+}
+
 func (s *APIServer) indexHandler() http.HandlerFunc {
 	s.logger.Info("Index handler was called")
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +122,9 @@ func (s *APIServer) indexHandler() http.HandlerFunc {
 			s.logger.Error("templates error")
 			return
 		}
-		posts, err := s.store.User().FindAllPosts()
+		vars := mux.Vars(r)
+		department := vars["department"]
+		posts, err := s.store.User().FindAllDepartmentPosts(department)
 		if err != nil {
 			s.error(w, r, http.StatusInternalServerError, err)
 			s.logger.Error("db error (finding posts)")
@@ -99,6 +151,9 @@ func (s *APIServer) writePostHandler() http.HandlerFunc {
 			s.logger.Error("templates error")
 			return
 		}
+		vars := mux.Vars(r)
+		department := vars["department"]
+		fmt.Print(department)
 		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
 		t.ExecuteTemplate(w, "write", nil)
 	}
@@ -112,7 +167,7 @@ func (s *APIServer) savePostHandler() http.HandlerFunc { // only "POST" method
 		}
 		stringID := r.FormValue("id")
 		post := store.Post{ID: 0, Header: r.FormValue("header"),
-			Department: r.FormValue("department"), Content: r.FormValue("content"), Date: ""}
+			Author: r.Context().Value(ctxKeyUser).(*model.User).ID, Content: r.FormValue("content"), Date: ""}
 		if stringID != "" { // need to change data
 			intID, err := strconv.Atoi(stringID)
 			fmt.Print("int id == ", intID)
@@ -122,24 +177,30 @@ func (s *APIServer) savePostHandler() http.HandlerFunc { // only "POST" method
 				return
 			}
 			post.ID = intID
-			err = s.store.User().ChangePost(post)
+			department := departmentByAccess(r)
+			err = s.store.User().ChangePost(post, department)
 			if err != nil {
 				s.error(w, r, http.StatusInternalServerError, err)
 				s.logger.Error("db error (adding post)")
 				return
 			}
 			s.logger.Infof("Post %d was changed", post.ID)
-			http.Redirect(w, r, "/", 301)
+			http.Redirect(w, r, "/"+department, 301)
 			return
 		}
-		postID, err := s.store.User().AddPost(post)
+
+		department := departmentByAccess(r)
+		if department == "" { // wrong mail(??)
+			http.Redirect(w, r, "/", 301)
+		}
+		postID, err := s.store.User().AddPost(post, department)
 		if err != nil {
 			s.error(w, r, http.StatusInternalServerError, err)
 			s.logger.Error("db error (adding post)")
 			return
 		}
 		s.logger.Infof("Post %d was added", postID)
-		http.Redirect(w, r, "/", 301)
+		http.Redirect(w, r, "/"+department, 301)
 	}
 }
 
@@ -150,7 +211,11 @@ func (s *APIServer) editPostHandler() http.HandlerFunc { // only "POST" method
 			http.Redirect(w, r, "/", 302)
 		}
 		stringID := r.FormValue("id")
-		post, err := s.store.User().FindPost(stringID)
+		department := departmentByAccess(r)
+		if department == "" { // wrong mail(??)
+			http.Redirect(w, r, "/", 301)
+		}
+		post, err := s.store.User().FindPost(stringID, department)
 		if err != nil {
 			s.error(w, r, http.StatusBadRequest, err)
 			s.logger.Error("db error (edit post 2)")
@@ -167,6 +232,26 @@ func (s *APIServer) editPostHandler() http.HandlerFunc { // only "POST" method
 		}
 		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
 		t.ExecuteTemplate(w, "write", post)
+	}
+}
+
+func (s *APIServer) deletePostHandler() http.HandlerFunc {
+	s.logger.Info("Delete post was called")
+	return func(w http.ResponseWriter, r *http.Request) {
+		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
+			http.Redirect(w, r, "/", 302)
+		}
+		stringID := r.FormValue("id")
+		department := departmentByAccess(r)
+		if department == "" { // wrong mail(??)
+			http.Redirect(w, r, "/", 301)
+		}
+		if err := s.store.User().DeletePost(stringID, department); err != nil {
+			s.error(w, r, http.StatusInternalServerError, err)
+			s.logger.Error("Delete post error")
+			return
+		}
+		http.Redirect(w, r, "/"+department, 301)
 	}
 }
 

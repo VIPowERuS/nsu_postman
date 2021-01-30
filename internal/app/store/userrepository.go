@@ -11,11 +11,11 @@ type UserRepository struct {
 
 // Post ...
 type Post struct {
-	ID         int
-	Header     string
-	Department string
-	Content    string
-	Date       string
+	ID      int
+	Header  string
+	Author  int
+	Content string
+	Date    string
 }
 
 // FindByEmail ...
@@ -29,18 +29,18 @@ func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
 }
 
 // FindPost ...
-func (r *UserRepository) FindPost(ID string) (*Post, error) {
+func (r *UserRepository) FindPost(ID string, department string) (*Post, error) { // GOOD
 	post := &Post{}
-	if err := r.store.db.QueryRow("SELECT header, department, content, date FROM posts WHERE id = $1",
-		ID).Scan(&post.Header, &post.Department, &post.Content, &post.Date); err != nil {
+	if err := r.store.db.QueryRow("SELECT header, author, content, date FROM "+department+" WHERE id = $1",
+		ID).Scan(&post.Header, &post.Author, &post.Content, &post.Date); err != nil {
 		return nil, err
 	}
 	return post, nil
 }
 
-// FindAllPosts ...
-func (r *UserRepository) FindAllPosts() ([]Post, error) {
-	rows, err := r.store.db.Query("SELECT * FROM posts")
+// FindAllDepartmentPosts ...
+func (r *UserRepository) FindAllDepartmentPosts(department string) ([]Post, error) { // GOOD
+	rows, err := r.store.db.Query("SELECT * FROM " + department)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (r *UserRepository) FindAllPosts() ([]Post, error) {
 	for rows.Next() {
 		//post := new(Post)
 		var post Post
-		err := rows.Scan(&post.ID, &post.Header, &post.Department, &post.Content, &post.Date)
+		err := rows.Scan(&post.ID, &post.Header, &post.Author, &post.Content, &post.Date)
 		if err != nil {
 			return nil, err
 		}
@@ -63,9 +63,9 @@ func (r *UserRepository) FindAllPosts() ([]Post, error) {
 }
 
 // AddPost ...
-func (r *UserRepository) AddPost(post Post) (int64, error) {
-	result, err := r.store.db.Exec("INSERT INTO posts (header, department, content, date) VALUES ($1, $2, $3, '01/02/2021');",
-		post.Header, post.Department, post.Content)
+func (r *UserRepository) AddPost(post Post, department string) (int64, error) { // GOOD
+	result, err := r.store.db.Exec("INSERT INTO "+department+" (header, author, content, date) VALUES ($1, $2, $3, '02/02/2021');",
+		post.Header, post.Author, post.Content)
 	if err != nil {
 		return 0, err
 	}
@@ -77,8 +77,16 @@ func (r *UserRepository) AddPost(post Post) (int64, error) {
 }
 
 // ChangePost ...
-func (r *UserRepository) ChangePost(post Post) error {
-	_, err := r.store.db.Exec("UPDATE posts SET header = $1, department = $2, content = $3 WHERE id = $4;", // UPDATE!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		post.Header, post.Department, post.Content, post.ID)
+func (r *UserRepository) ChangePost(post Post, department string) error { // GOOD
+	_, err := r.store.db.Exec("UPDATE "+department+" SET header = $1, author = $2, content = $3 WHERE id = $4;", // UPDATE!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		post.Header, post.Author, post.Content, post.ID)
 	return err
+}
+
+// DeletePost ...
+func (r *UserRepository) DeletePost(ID string, department string) error { // GOOD
+	if _, err := r.store.db.Exec("DELETE FROM "+department+" WHERE id = $1", ID); err != nil {
+		return err
+	}
+	return nil
 }
