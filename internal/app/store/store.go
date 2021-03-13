@@ -11,7 +11,7 @@ type Config struct {
 	DatabaseURL string `toml:"database_url"`
 }
 
-// NewConfig ...
+// NewConfig return new initialized struct
 func NewConfig() *Config {
 	return &Config{}
 }
@@ -30,7 +30,7 @@ func New(config *Config) *Store {
 	}
 }
 
-// Open ...
+// Open database with config data
 func (s *Store) Open() error {
 	db, err := sql.Open("postgres", s.config.DatabaseURL)
 	if err != nil {

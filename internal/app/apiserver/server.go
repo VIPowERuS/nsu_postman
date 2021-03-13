@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -29,12 +28,12 @@ func init() {
 	departments["kafaiml"] = 1
 	departments["kafvmat"] = 2
 	departments["kafvychmat"] = 3
-	departments["kafedra-vychislitelnykh-sistem"] = 4 // !!!
+	departments["kafvychsyst"] = 4 // !!! table is not created
 	departments["kafgitp"] = 5
 	departments["kafgidro"] = 6
 	departments["kafdmi"] = 7
 	departments["kafdur"] = 8
-	departments["kafedra-matematicheskikh-metodov-geofiziki"] = 9 // !!!
+	departments["kafmmgf"] = 9 // !!! table is not created
 	departments["kafma"] = 10
 	departments["kafmatmod"] = 11
 	departments["kafmatek"] = 12
@@ -65,6 +64,7 @@ func (s *APIServer) configureRouter() {
 	s.router.HandleFunc("/sendMail", s.sendMailHandler()).Methods("POST")
 }
 
+// Return user object with all data from cookies
 func (s *APIServer) getCookie(w http.ResponseWriter, r *http.Request) *model.User {
 	session, err := s.sessionStore.Get(r, sessionName)
 	if err != nil {
@@ -82,6 +82,7 @@ func (s *APIServer) getCookie(w http.ResponseWriter, r *http.Request) *model.Use
 	return &model.User{ID: id.(int), Email: mail.(string), Access: access.(int)}
 }
 
+// MiddleWare component for taking cookies
 func (s *APIServer) authenticateUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := s.getCookie(w, r)
@@ -90,17 +91,8 @@ func (s *APIServer) authenticateUser(next http.Handler) http.Handler {
 	})
 }
 
-func departmentByAccess(r *http.Request) string {
-	for key, value := range departments {
-		if value == r.Context().Value(ctxKeyUser).(*model.User).Access {
-			return key
-		}
-	}
-	return ""
-}
-
+// Handler for main page
 func (s *APIServer) mainPageHandler() http.HandlerFunc {
-	s.logger.Info("Index handler was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/root.html", "internal/templates/header.html", "internal/templates/footer.html")
 		if err != nil {
@@ -113,8 +105,8 @@ func (s *APIServer) mainPageHandler() http.HandlerFunc {
 	}
 }
 
+// Handler for showing posts on page
 func (s *APIServer) indexHandler() http.HandlerFunc {
-	s.logger.Info("Index handler was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/index.html", "internal/templates/header.html", "internal/templates/footer.html")
 		if err != nil {
@@ -122,7 +114,7 @@ func (s *APIServer) indexHandler() http.HandlerFunc {
 			s.logger.Error("templates error")
 			return
 		}
-		vars := mux.Vars(r)
+		vars := mux.Vars(r) // take variables from URL
 		department := vars["department"]
 		posts, err := s.store.User().FindAllDepartmentPosts(department)
 		if err != nil {
@@ -130,17 +122,17 @@ func (s *APIServer) indexHandler() http.HandlerFunc {
 			s.logger.Error("db error (finding posts)")
 			return
 		}
-		chi := struct {
-			Data []store.Post
-			ID   int
-		}{posts, r.Context().Value(ctxKeyUser).(*model.User).ID}
+		indexData := struct {
+			Data       []store.Post
+			IsApproved bool
+		}{posts, departmentByAccess(r) == department}
 		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
-		t.ExecuteTemplate(w, "index", chi)
+		t.ExecuteTemplate(w, "index", indexData)
 	}
 }
 
+// Handler for writing posts
 func (s *APIServer) writePostHandler() http.HandlerFunc {
-	s.logger.Info("Write post was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
 			http.Redirect(w, r, "/", 302)
@@ -151,37 +143,44 @@ func (s *APIServer) writePostHandler() http.HandlerFunc {
 			s.logger.Error("templates error")
 			return
 		}
-		vars := mux.Vars(r)
-		department := vars["department"]
-		fmt.Print(department)
 		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
 		t.ExecuteTemplate(w, "write", nil)
 	}
 }
 
+// Returns user's department by access
+func departmentByAccess(r *http.Request) string {
+	for key, value := range departments {
+		if value == r.Context().Value(ctxKeyUser).(*model.User).Access {
+			return key
+		}
+	}
+	return ""
+}
+
+// Saves or changes user's post in databse
 func (s *APIServer) savePostHandler() http.HandlerFunc { // only "POST" method
-	s.logger.Info("Save post was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
 			http.Redirect(w, r, "/", 302)
 		}
 		stringID := r.FormValue("id")
+		// create new post with data from form, need to change "Data" state later
 		post := store.Post{ID: 0, Header: r.FormValue("header"),
 			Author: r.Context().Value(ctxKeyUser).(*model.User).ID, Content: r.FormValue("content"), Date: ""}
 		if stringID != "" { // need to change data
 			intID, err := strconv.Atoi(stringID)
-			fmt.Print("int id == ", intID)
 			if err != nil {
 				s.error(w, r, http.StatusInternalServerError, err)
-				s.logger.Error("db error (edit post 1)")
+				s.logger.Error("Cast Error in savePostHandler")
 				return
 			}
-			post.ID = intID
+			post.ID = intID // remember sender's id
 			department := departmentByAccess(r)
 			err = s.store.User().ChangePost(post, department)
 			if err != nil {
 				s.error(w, r, http.StatusInternalServerError, err)
-				s.logger.Error("db error (adding post)")
+				s.logger.Error("Changing post error in savePostHandler")
 				return
 			}
 			s.logger.Infof("Post %d was changed", post.ID)
@@ -192,11 +191,12 @@ func (s *APIServer) savePostHandler() http.HandlerFunc { // only "POST" method
 		department := departmentByAccess(r)
 		if department == "" { // wrong mail(??)
 			http.Redirect(w, r, "/", 301)
+			s.logger.Warn("row 192...")
 		}
 		postID, err := s.store.User().AddPost(post, department)
 		if err != nil {
 			s.error(w, r, http.StatusInternalServerError, err)
-			s.logger.Error("db error (adding post)")
+			s.logger.Error("Adding post error in savePostHandler")
 			return
 		}
 		s.logger.Infof("Post %d was added", postID)
@@ -204,8 +204,8 @@ func (s *APIServer) savePostHandler() http.HandlerFunc { // only "POST" method
 	}
 }
 
+// Edit choosen post and save changes to database
 func (s *APIServer) editPostHandler() http.HandlerFunc { // only "POST" method
-	s.logger.Info("Edit post was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
 			http.Redirect(w, r, "/", 302)
@@ -214,14 +214,20 @@ func (s *APIServer) editPostHandler() http.HandlerFunc { // only "POST" method
 		department := departmentByAccess(r)
 		if department == "" { // wrong mail(??)
 			http.Redirect(w, r, "/", 301)
+			s.logger.Warn("row 212...")
 		}
 		post, err := s.store.User().FindPost(stringID, department)
 		if err != nil {
 			s.error(w, r, http.StatusBadRequest, err)
-			s.logger.Error("db error (edit post 2)")
+			s.logger.Error("Find post error in editPostHandler")
 			return
 		}
 		ID, err := strconv.Atoi(r.FormValue("id"))
+		if err != nil {
+			s.error(w, r, http.StatusInternalServerError, err)
+			s.logger.Error("Cast Error in savePostHandler")
+			return
+		}
 		post.ID = ID
 		s.logger.Infof("Post %d was choosen to be changed", post.ID)
 		t, err := template.ParseFiles("internal/templates/write.html", "internal/templates/header.html", "internal/templates/footer.html")
@@ -235,8 +241,8 @@ func (s *APIServer) editPostHandler() http.HandlerFunc { // only "POST" method
 	}
 }
 
+// Delete post from database
 func (s *APIServer) deletePostHandler() http.HandlerFunc {
-	s.logger.Info("Delete post was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
 			http.Redirect(w, r, "/", 302)
@@ -245,6 +251,7 @@ func (s *APIServer) deletePostHandler() http.HandlerFunc {
 		department := departmentByAccess(r)
 		if department == "" { // wrong mail(??)
 			http.Redirect(w, r, "/", 301)
+			s.logger.Warn("row 249...")
 		}
 		if err := s.store.User().DeletePost(stringID, department); err != nil {
 			s.error(w, r, http.StatusInternalServerError, err)
@@ -255,8 +262,8 @@ func (s *APIServer) deletePostHandler() http.HandlerFunc {
 	}
 }
 
+// Login page handler
 func (s *APIServer) loginUserHandler() http.HandlerFunc { // "GET" method
-	s.logger.Info("Login user was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/login.html", "internal/templates/header.html", "internal/templates/footer.html")
 		if err != nil {
@@ -269,8 +276,8 @@ func (s *APIServer) loginUserHandler() http.HandlerFunc { // "GET" method
 	}
 }
 
+//
 func (s *APIServer) loginCheckHandler() http.HandlerFunc { // "POST" method
-	s.logger.Info("Login check was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles("internal/templates/login.html", "internal/templates/header.html", "internal/templates/footer.html")
 		if err != nil {
@@ -278,6 +285,7 @@ func (s *APIServer) loginCheckHandler() http.HandlerFunc { // "POST" method
 			s.logger.Error("templates error")
 			return
 		}
+		// take user's information from database by email
 		usr, err := s.store.User().FindByEmail(r.FormValue("mail"))
 		if tempPassword := model.ToHash(r.FormValue("password")); tempPassword == usr.EncryptedPassword {
 			session, err := s.sessionStore.Get(r, sessionName)
@@ -295,14 +303,14 @@ func (s *APIServer) loginCheckHandler() http.HandlerFunc { // "POST" method
 			http.Redirect(w, r, "/", 302)
 			return
 		}
-		usr = nil
+		usr = nil // incorrect password
 		t.ExecuteTemplate(w, "header", r.Context().Value(ctxKeyUser).(*model.User))
 		t.ExecuteTemplate(w, "login", nil)
 	}
 }
 
+// Handler for logout button. It makes cookie's age negative
 func (s *APIServer) logoutHandler() http.HandlerFunc {
-	s.logger.Info("Logout was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		session, err := s.sessionStore.Get(r, sessionName)
 		if err != nil {
@@ -321,8 +329,8 @@ func (s *APIServer) logoutHandler() http.HandlerFunc {
 	}
 }
 
+// Handler for writing mails (test version)
 func (s *APIServer) writeMailHandler() http.HandlerFunc {
-	s.logger.Info("Write Mail was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
 			http.Redirect(w, r, "/", 302)
@@ -338,18 +346,20 @@ func (s *APIServer) writeMailHandler() http.HandlerFunc {
 	}
 }
 
+// Handler for sending mails by data from forms in simple look
 func (s *APIServer) sendMailHandler() http.HandlerFunc {
-	s.logger.Info("Send Mail was called")
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cond := r.Context().Value(ctxKeyUser).(*model.User).ID == 0; cond {
 			http.Redirect(w, r, "/", 302)
 		}
-		var data = MailData{r.FormValue("receiver"), r.FormValue("subject"), r.FormValue("content")}
-		if err := s.sendMails(data); err != nil {
-			s.logger.Error("send mail error:", err)
-			s.respond(w, r, http.StatusInternalServerError, err)
+		if r.FormValue("receiver") != "" && r.FormValue("content") != "" { // must add cheking email!!!
+			var data = MailData{r.FormValue("receiver"), r.FormValue("subject"), r.FormValue("content")}
+			if err := s.sendMails(data); err != nil {
+				s.logger.Error("send mail error:", err)
+				s.respond(w, r, http.StatusInternalServerError, err)
+			}
+			s.logger.Info("mail was sended")
 		}
-		s.logger.Info("mail was sended")
 		t, err := template.ParseFiles("internal/templates/mail.html", "internal/templates/header.html", "internal/templates/footer.html")
 		if err != nil {
 			s.error(w, r, http.StatusInternalServerError, err)

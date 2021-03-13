@@ -34,7 +34,7 @@ func requiredIf(cond bool) validation.RuleFunc {
 	}
 }
 
-// Sanitize ...
+// Sanitize function clean unhashed password from user's data
 func (u *User) Sanitize() {
 	u.Password = ""
 }
@@ -59,7 +59,7 @@ func encryptString(s string) (string, error) {
 	return string(b), nil
 }
 
-// ToHash ...
+// ToHash function translate input string by hash-function
 func ToHash(password string) string {
 	h := sha1.New()
 	h.Write([]byte(password))

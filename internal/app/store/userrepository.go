@@ -18,7 +18,7 @@ type Post struct {
 	Date    string
 }
 
-// FindByEmail ...
+// FindByEmail takes user's data from database and return "user" struct by email
 func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
 	u := &model.User{}
 	if err := r.store.db.QueryRow("SELECT id, email, encrypted_password, access FROM users WHERE email = $1",
@@ -28,7 +28,7 @@ func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
 	return u, nil
 }
 
-// FindPost ...
+// FindPost use post id and department to find necessary post in database and return it
 func (r *UserRepository) FindPost(ID string, department string) (*Post, error) { // GOOD
 	post := &Post{}
 	if err := r.store.db.QueryRow("SELECT header, author, content, date FROM "+department+" WHERE id = $1",
@@ -38,7 +38,7 @@ func (r *UserRepository) FindPost(ID string, department string) (*Post, error) {
 	return post, nil
 }
 
-// FindAllDepartmentPosts ...
+// FindAllDepartmentPosts returns all posts from department's database
 func (r *UserRepository) FindAllDepartmentPosts(department string) ([]Post, error) { // GOOD
 	rows, err := r.store.db.Query("SELECT * FROM " + department)
 	if err != nil {
@@ -48,7 +48,6 @@ func (r *UserRepository) FindAllDepartmentPosts(department string) ([]Post, erro
 
 	posts := make([]Post, 0)
 	for rows.Next() {
-		//post := new(Post)
 		var post Post
 		err := rows.Scan(&post.ID, &post.Header, &post.Author, &post.Content, &post.Date)
 		if err != nil {
@@ -62,7 +61,7 @@ func (r *UserRepository) FindAllDepartmentPosts(department string) ([]Post, erro
 	return posts, nil
 }
 
-// AddPost ...
+// AddPost to department's database and returns new post id
 func (r *UserRepository) AddPost(post Post, department string) (int64, error) { // GOOD
 	result, err := r.store.db.Exec("INSERT INTO "+department+" (header, author, content, date) VALUES ($1, $2, $3, '02/02/2021');",
 		post.Header, post.Author, post.Content)
@@ -76,14 +75,14 @@ func (r *UserRepository) AddPost(post Post, department string) (int64, error) { 
 	return postID, nil
 }
 
-// ChangePost ...
+// ChangePost update already created post in database
 func (r *UserRepository) ChangePost(post Post, department string) error { // GOOD
 	_, err := r.store.db.Exec("UPDATE "+department+" SET header = $1, author = $2, content = $3 WHERE id = $4;", // UPDATE!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		post.Header, post.Author, post.Content, post.ID)
 	return err
 }
 
-// DeletePost ...
+// DeletePost from database by id and department
 func (r *UserRepository) DeletePost(ID string, department string) error { // GOOD
 	if _, err := r.store.db.Exec("DELETE FROM "+department+" WHERE id = $1", ID); err != nil {
 		return err

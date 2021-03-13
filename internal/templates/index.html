@@ -1,13 +1,14 @@
 {{ define "index" }}
 
-{{ $ID := .ID }}
+{{ $IsApproved := .IsApproved }}
 
 {{ range $key, $value := .Data }}
 <div class="row">
 	<div class="col-xs-2">
 	</div>
 	<div class="col-xs-8">
-		<h1>{{ $value.Header }} {{ if $ID }}
+		<h1>{{ $value.Header }} 
+			{{ if $IsApproved }}
 			<a href="/editPost?id={{$value.ID}}"> edit {{$value.ID}}</a>
 			{{ end }}
 		</h1>
